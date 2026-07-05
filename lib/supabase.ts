@@ -15,6 +15,13 @@ export function db(): SupabaseClient {
   if (!url || !key) {
     throw new Error("Supabase not configured: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
   }
-  client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  client = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    // Next.js App Router persistently caches `fetch` GETs (including supabase-js
+    // SELECTs) in its on-disk Data Cache, which can serve a stale/empty read
+    // across requests and even restarts. Force every DB call to bypass it so the
+    // Oracle Ledger always reads live Postgres state.
+    global: { fetch: (input, init) => fetch(input as any, { ...init, cache: "no-store" }) },
+  });
   return client;
 }

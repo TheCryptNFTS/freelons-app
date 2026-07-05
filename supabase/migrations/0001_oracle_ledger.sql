@@ -167,3 +167,23 @@ create or replace function oracle_tick_locks()
 returns void language sql security definer set search_path = public as $$
   update oracle_duels set status='locked' where status='open' and (extract(epoch from now())*1000)::bigint >= lock_ts;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- HARDENING (secure end-state). The oracle tables + money functions are
+-- reachable ONLY through the server's service_role key (which bypasses RLS).
+-- anon / authenticated must NOT touch them directly via PostgREST — otherwise
+-- these SECURITY DEFINER functions could be called straight from a browser,
+-- bypassing the SIWE + ownerOf + admin gates in the Next.js route handlers.
+revoke all on oracle_duels, oracle_hex, oracle_stances, oracle_ratings from anon, authenticated;
+grant  all on oracle_duels, oracle_hex, oracle_stances, oracle_ratings to service_role;
+
+revoke execute on function oracle_place_stance(text,text,text,bigint,text,double precision,bigint,bigint,bigint,bigint) from public, anon, authenticated;
+revoke execute on function oracle_resolve_duel(text,text,text)                      from public, anon, authenticated;
+revoke execute on function oracle_claim_daily(text,bigint,bigint)                   from public, anon, authenticated;
+revoke execute on function oracle_void_duel(text)                                   from public, anon, authenticated;
+revoke execute on function oracle_tick_locks()                                      from public, anon, authenticated;
+grant  execute on function oracle_place_stance(text,text,text,bigint,text,double precision,bigint,bigint,bigint,bigint) to service_role;
+grant  execute on function oracle_resolve_duel(text,text,text)                      to service_role;
+grant  execute on function oracle_claim_daily(text,bigint,bigint)                   to service_role;
+grant  execute on function oracle_void_duel(text)                                   to service_role;
+grant  execute on function oracle_tick_locks()                                      to service_role;
