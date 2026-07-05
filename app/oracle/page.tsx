@@ -14,8 +14,14 @@ type Today = {
   duel: Duel | null; pot: { follow: number; fade: number } | null;
   participants: number; wallet: string | null; hexBalance: number | null; yourStance: any;
 };
+type Mkt = { q: string; yes: number; vol: number; chg: number; cat: string };
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+function fmtVol(v: number): string {
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${Math.round(v / 1e3)}k`;
+  return `$${Math.round(v)}`;
+}
 
 export default function OraclePage() {
   const { address } = useAccount();
@@ -23,6 +29,7 @@ export default function OraclePage() {
   const [demoWallet, setDemoWallet] = useState("");
   const [tokenId, setTokenId] = useState("");
   const [data, setData] = useState<Today | null>(null);
+  const [markets, setMarkets] = useState<Mkt[]>([]);
   const [stake, setStake] = useState<"FOLLOW" | "FADE">("FOLLOW");
   const [ownProb, setOwnProb] = useState(60);
   const [hex, setHex] = useState(100);
@@ -37,12 +44,16 @@ export default function OraclePage() {
     const r = await fetch("/api/oracle/today", { cache: "no-store" });
     setData(await r.json());
   }
+  async function loadMarkets() {
+    try { const r = await fetch("/api/oracle/markets", { cache: "no-store" }); const d = await r.json(); if (Array.isArray(d.markets)) setMarkets(d.markets); } catch {}
+  }
   useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((d) => setSession(d.session)).catch(() => {});
-    refresh();
+    refresh(); loadMarkets();
     pollRef.current = setInterval(refresh, 5000);
+    const mk = setInterval(loadMarkets, 60000);
     const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => { clearInterval(pollRef.current); clearInterval(t); };
+    return () => { clearInterval(pollRef.current); clearInterval(mk); clearInterval(t); };
   }, []);
 
   const duel = data?.duel;
@@ -94,25 +105,44 @@ export default function OraclePage() {
     return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
   };
 
+  const tickers = markets.length ? [...markets, ...markets] : [];
+
   return (
     <main className="oracle-shell">
+      {/* live ticker */}
+      {markets.length > 0 && (
+        <div className="ora-ticker">
+          <div className="ora-ticker-track">
+            {tickers.map((m, i) => (
+              <span className="ora-tick" key={i}>
+                <span className="q">{m.q}</span>
+                <span className="p">{Math.round(m.yes * 100)}%</span>
+                <span className={`d ${m.chg >= 0 ? "ora-up" : "ora-down"}`}>{m.chg >= 0 ? "▲" : "▼"}{Math.abs(m.chg * 100).toFixed(1)}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="ora-wrap">
-        {/* top bar */}
+        {/* terminal header */}
         <div className="ora-top">
           <a href="/oracle" className="ora-brand">FREELON CITY <b>· ORACLE</b></a>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <a href="/oracle/leaderboard" className="ora-rank">RANKS ▸</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span className="ora-status"><span className="live" />Oracle online</span>
             <FreelonsConnectButton />
           </div>
         </div>
 
         {/* hero */}
         <div className="ora-hero">
-          <div className="ora-kicker">Daily Duel · Beat the AI</div>
-          <h1 className="ora-title">OUT-CALL<br />THE MACHINE</h1>
-          <p className="ora-sub">Edge seals a probability on a real market. <b>You call it.</b> Closest forecast takes the HEX pot — <b>points, not money.</b></p>
+          <div className="ora-kicker">Edge // Oracle Intelligence · HEX, not money</div>
+          <h1 className="ora-title">THE ORACLE<br />LEDGER</h1>
+          <p className="ora-sub">The machine has sealed its odds on the <b>whole board</b>. One market is open for a duel — <b>stake your HEX against Edge</b> before the countdown locks. Everything else is intel.</p>
         </div>
 
+        {/* ============ DUEL OF THE DAY ============ */}
+        <div className="ora-seclab">◆ Duel of the day — the one you can play</div>
         {!duel ? (
           <div className="ora-empty">
             <div className="ora-kicker">No open duel</div>
@@ -122,17 +152,13 @@ export default function OraclePage() {
         ) : (
           <div className="ora-card">
             <div className="ora-inner">
-              {/* strip */}
               <div className="ora-strip">
                 <span>EDGE · OBJECTIVE MARKET · {duel.domain.toUpperCase()}</span>
                 <span className="ora-seal"><span className="dot" />SEALED {duel.sealHash}</span>
               </div>
               <div className="ora-rule" />
-
-              {/* question */}
               <div className="ora-q">{duel.marketTitle}</div>
 
-              {/* face-off */}
               <div className="ora-duel">
                 <div className="ora-side ora-machine">
                   <div className="lab">◆ The Machine — Edge&apos;s sealed call</div>
@@ -142,9 +168,7 @@ export default function OraclePage() {
                     {duel.edgeBrier != null && <> · Brier <b>{duel.edgeBrier.toFixed(3)}</b></>}
                   </div>
                 </div>
-
                 <div className="ora-vs">VS</div>
-
                 <div className="ora-side ora-you">
                   <div className="lab">{isOpen ? "Locks in" : duel.status === "resolved" ? "Outcome" : "Locked"}</div>
                   <div className={`ora-count${urgent ? " urgent" : ""}`}>{duel.status === "resolved" ? (duel.outcome || "—") : countdown}</div>
@@ -152,7 +176,6 @@ export default function OraclePage() {
                 </div>
               </div>
 
-              {/* pot bar */}
               <div className="ora-pot">
                 <div className="row"><span className="f">FOLLOW · {pot?.follow || 0}</span><span className="a">{pot?.fade || 0} · FADE</span></div>
                 <div className="ora-bar">
@@ -161,7 +184,6 @@ export default function OraclePage() {
                 </div>
               </div>
 
-              {/* ---- states ---- */}
               {duel.status === "resolved" && data?.yourStance ? (
                 <>
                   <div className="ora-hr" />
@@ -174,7 +196,7 @@ export default function OraclePage() {
                     <Stat k="PAYOUT" v={`${data.yourStance.payout ?? 0} HEX`} s={data.yourStance.payout > 0 ? "WON POT" : "lost pot"} />
                     <Stat k="HEX BALANCE" v={`${data.hexBalance ?? 0}`} />
                   </div>
-                  <a href={shareResolved()} target="_blank" rel="noreferrer" className="ora-lock" style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 22, width: "auto" }}>SHARE THE RECEIPT ▸</a>
+                  <a href={shareResolved()} target="_blank" rel="noreferrer" className="ora-lock" style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 22 }}>SHARE THE RECEIPT ▸</a>
                 </>
               ) : data?.yourStance ? (
                 <>
@@ -189,45 +211,29 @@ export default function OraclePage() {
                 <>
                   <div className="ora-hr" />
                   <div className="ora-choices">
-                    <button onClick={() => setStake("FOLLOW")} className={`ora-choice${stake === "FOLLOW" ? " on-f" : ""}`}>
-                      FOLLOW EDGE<small>bet {duel.edgeSide} wins</small>
-                    </button>
-                    <button onClick={() => setStake("FADE")} className={`ora-choice${stake === "FADE" ? " on-a" : ""}`}>
-                      FADE EDGE<small>bet {duel.edgeSide} loses</small>
-                    </button>
+                    <button onClick={() => setStake("FOLLOW")} className={`ora-choice${stake === "FOLLOW" ? " on-f" : ""}`}>FOLLOW EDGE<small>bet {duel.edgeSide} wins</small></button>
+                    <button onClick={() => setStake("FADE")} className={`ora-choice${stake === "FADE" ? " on-a" : ""}`}>FADE EDGE<small>bet {duel.edgeSide} loses</small></button>
                   </div>
-
                   <div style={{ marginTop: 22 }}>
                     <label className="ora-lab">Your probability of YES — <b>{ownProb}%</b> <span style={{ opacity: .6 }}>(scored on calibration)</span></label>
                     <input type="range" min={1} max={99} value={ownProb} onChange={(e) => setOwnProb(Number(e.target.value))} className="ora-range" style={{ ["--val" as any]: `${ownProb}%` }} />
                   </div>
-
                   <div className="ora-grid3" style={{ marginTop: 22 }}>
-                    <div>
-                      <label className="ora-lab">HEX Stake</label>
-                      <input value={hex} onChange={(e) => setHex(Number(e.target.value.replace(/\D/g, "")) || 0)} className="ora-field" />
-                    </div>
-                    <div>
-                      <label className="ora-lab">Citizen Token ID</label>
-                      <input value={tokenId} onChange={(e) => setTokenId(e.target.value.replace(/\D/g, ""))} placeholder="333" className="ora-field" />
-                    </div>
+                    <div><label className="ora-lab">HEX Stake</label><input value={hex} onChange={(e) => setHex(Number(e.target.value.replace(/\D/g, "")) || 0)} className="ora-field" /></div>
+                    <div><label className="ora-lab">Citizen Token ID</label><input value={tokenId} onChange={(e) => setTokenId(e.target.value.replace(/\D/g, ""))} placeholder="333" className="ora-field" /></div>
                     <div style={{ textAlign: "right" }}>
                       <label className="ora-lab" style={{ textAlign: "right" }}>HEX Balance</label>
                       <div style={{ fontFamily: "'Clash Display'", fontWeight: 700, fontSize: 28, color: "var(--o-gold-bright)" }}>{data?.hexBalance ?? "—"}</div>
                       <button onClick={claimDaily} className="ora-mini">claim daily HEX</button>
                     </div>
                   </div>
-
                   {!session && (
                     <div style={{ marginTop: 18 }}>
                       <label className="ora-lab">Demo — ENS handle <span style={{ opacity: .6 }}>(or connect a wallet, top right)</span></label>
                       <input value={demoWallet} onChange={(e) => setDemoWallet(e.target.value.toLowerCase())} placeholder="vitalik.eth" className="ora-field" />
                     </div>
                   )}
-
-                  <button disabled={busy || !wallet || !tokenId} onClick={submit} className="ora-lock" style={{ marginTop: 22 }}>
-                    {busy ? "LOCKING…" : "LOCK MY CALL ▸"}
-                  </button>
+                  <button disabled={busy || !wallet || !tokenId} onClick={submit} className="ora-lock" style={{ marginTop: 22 }}>{busy ? "LOCKING…" : "LOCK MY CALL ▸"}</button>
                   {err && <p className="ora-err" style={{ marginTop: 12 }}>{err}</p>}
                 </>
               ) : duel.status === "resolved" ? (
@@ -248,7 +254,6 @@ export default function OraclePage() {
                 </>
               )}
             </div>
-
             <div className="ora-foot">
               <div className="mk">THE ORACLE <b>LEDGER</b></div>
               <a href="/oracle/leaderboard">CALIBRATION RANKS ▸</a>
@@ -256,7 +261,42 @@ export default function OraclePage() {
           </div>
         )}
 
-        <p className="ora-note">HEX is points, not money · outcomes settle on public markets · you keep your own wallet</p>
+        {/* ============ THE BOARD ============ */}
+        {markets.length > 0 && (
+          <div className="ora-board">
+            <div className="ora-board-head">
+              <h2>MARKETS EDGE IS WATCHING</h2>
+              <span className="count">{markets.length} live · read-only intel</span>
+            </div>
+            <div className="ora-grid">
+              {markets.map((m, i) => (
+                <div className={`ora-tile${i % 5 === 0 ? " hot" : ""}`} key={i}>
+                  <div className="thead">
+                    <span className="ora-chip">{m.cat}</span>
+                    <span className="vol">{fmtVol(m.vol)} vol</span>
+                  </div>
+                  <div className="qt">{m.q}</div>
+                  <div className="tbot">
+                    <div className="yes">{Math.round(m.yes * 100)}<span>% YES</span></div>
+                    <div className={`mv ${m.chg >= 0 ? "ora-up" : "ora-down"}`}>{m.chg >= 0 ? "▲" : "▼"} {Math.abs(m.chg * 100).toFixed(1)}</div>
+                  </div>
+                  <div className="track"><i style={{ width: `${Math.round(m.yes * 100)}%` }} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ============ GRADUATE ============ */}
+        <div className="ora-grad">
+          <div>
+            <div className="t">Sharpen here. Then graduate to the real board.</div>
+            <div className="s">You&apos;re staking HEX — points, not money. Out-forecast the machine on calibration, climb the ranks, and step up to real markets when you&apos;re ready.</div>
+          </div>
+          <a href="/oracle/leaderboard">SEE THE RANKS ▸</a>
+        </div>
+
+        <p className="ora-note">HEX is points, not money · outcomes settle on public markets · you keep your own wallet · market data via Polymarket</p>
       </div>
     </main>
   );
