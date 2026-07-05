@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Nav from "@/components/Nav";
 import { useAccount } from "wagmi";
+import { FreelonsConnectButton } from "@/components/ConnectButton";
 
 type Duel = {
   id: string; marketTitle: string; domain: string;
@@ -50,12 +50,10 @@ export default function OraclePage() {
   const potTotal = (pot?.follow || 0) + (pot?.fade || 0);
   const followPctBar = potTotal ? (pot!.follow / potTotal) * 100 : 50;
 
-  const lockLeft = useMemo(() => {
-    if (!duel) return 0;
-    return Math.max(0, duel.lockTs - now);
-  }, [duel, now]);
+  const lockLeft = useMemo(() => (duel ? Math.max(0, duel.lockTs - now) : 0), [duel, now]);
   const countdown = fmtDur(lockLeft);
   const isOpen = duel?.status === "open" && lockLeft > 0;
+  const urgent = isOpen && lockLeft < 3600_000;
 
   async function claimDaily() {
     if (!wallet) return;
@@ -92,180 +90,184 @@ export default function OraclePage() {
     if (!duel || !data?.yourStance) return "#";
     const won = data.yourStance.payout > 0;
     const beat = data.yourStance.beatEdge;
-    const text = `THE ORACLE LEDGER · ${duel.sealHash}\n\n${beat ? "I out-forecast the AI." : won ? "I beat the pot." : "The AI got this one."}\nMarket: ${duel.marketTitle}\nEdge called ${pct(duel.edgeProbYes)} · outcome ${duel.outcome}\n\nfreeloncity.com/oracle · HEX points, not money #FREELONS`;
+    const text = `THE ORACLE LEDGER · ${duel.sealHash}\n\n${beat ? "I out-forecast the AI." : won ? "I beat the pot." : "The AI got this one."}\nMarket: ${duel.marketTitle}\nEdge called ${pct(duel.edgeProbYes)} · outcome ${duel.outcome}\n\nhex.freeloncity.com/oracle · HEX points, not money #FREELONS`;
     return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
   };
 
   return (
-    <>
-      <Nav />
-      <main className="relative px-4 py-14 md:py-20 overflow-hidden">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="typewriter text-[11px] tracking-[6px] mb-3" style={{ color: "var(--mustard)" }}>
-              THE ORACLE LEDGER · DAILY DUEL · BEAT THE AI
-            </div>
-            <h1 className="display-massive" style={{ color: "var(--manila)", fontSize: "clamp(64px, 13vw, 170px)" }}>OUT-CALL</h1>
-            <h2 className="display-h-serif" style={{ color: "var(--purple-glow)", marginTop: "-0.18em" }}>the machine.</h2>
-            <p className="typewriter text-[11px] tracking-[2px] mt-4 opacity-70">
-              HEX is points, not money · outcomes settle on public markets · you keep your own wallet
-            </p>
+    <main className="oracle-shell">
+      <div className="ora-wrap">
+        {/* top bar */}
+        <div className="ora-top">
+          <a href="/oracle" className="ora-brand">FREELON CITY <b>· ORACLE</b></a>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <a href="/oracle/leaderboard" className="ora-rank">RANKS ▸</a>
+            <FreelonsConnectButton />
           </div>
-
-          {!duel ? (
-            <div className="paper max-w-2xl mx-auto px-10 py-14 text-center">
-              <div className="typewriter text-[10px] tracking-[3px] opacity-70">NO OPEN DUEL</div>
-              <h3 className="display-h-serif mt-3" style={{ fontSize: "clamp(36px,6vw,64px)" }}>The desk is quiet.</h3>
-              <p className="handwritten text-lg mt-4 opacity-80">Edge hasn't sealed today's call yet. Check back.</p>
-            </div>
-          ) : (
-            <div className="paper tilt-1 relative">
-              <div className="file-tab left">DUEL · {duel.id.slice(0, 6).toUpperCase()}</div>
-              <div className="absolute top-8 right-8 z-10">
-                <div className={`stamp ${duel.status === "resolved" ? "green" : "mustard"}`} data-rot={3} data-text={duel.status.toUpperCase()}>{duel.status.toUpperCase()}</div>
-              </div>
-
-              <div className="px-8 md:px-14 py-12">
-                <div className="text-[10px] tracking-[3px] flex justify-between opacity-70">
-                  <span>EDGE — OBJECTIVE MARKET · {duel.domain.toUpperCase()}</span>
-                  <span>SEAL <b>{duel.sealHash}</b></span>
-                </div>
-                <div className="border-b border-ink/40 mt-2" />
-
-                <h3 className="display-h-serif mt-7" style={{ fontSize: "clamp(28px, 4.5vw, 52px)" }}>{duel.marketTitle}</h3>
-
-                {/* Edge's sealed call */}
-                <div className="mt-8 grid md:grid-cols-2 gap-6 items-end">
-                  <div>
-                    <div className="typewriter text-[10px] tracking-[3px] opacity-70">EDGE'S SEALED CALL</div>
-                    <div className="display-massive leading-none" style={{ color: "var(--purple)", fontSize: "clamp(64px,10vw,120px)" }}>
-                      {pct(duel.edgeProbYes)}
-                    </div>
-                    <div className="typewriter text-sm mt-1">
-                      YES · Edge favors <b>{duel.edgeSide}</b> · conf {pct(duel.edgeConfidence)}
-                      {duel.edgeBrier != null && <> · Brier <b>{duel.edgeBrier.toFixed(3)}</b></>}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="typewriter text-[10px] tracking-[3px] opacity-70">{isOpen ? "LOCKS IN" : duel.status === "resolved" ? "RESOLVED" : "LOCKED"}</div>
-                    <div className="display-h-sm" style={{ fontSize: "44px", color: isOpen ? "var(--ink)" : "var(--salmon)" }}>{duel.status === "resolved" ? duel.outcome : countdown}</div>
-                    <div className="typewriter text-[11px] opacity-70">{data?.participants || 0} citizens in · {potTotal} HEX pot</div>
-                  </div>
-                </div>
-
-                {/* Pot split bar */}
-                <div className="mt-6">
-                  <div className="flex justify-between typewriter text-[10px] tracking-[2px] opacity-70 mb-1">
-                    <span>FOLLOW {pot?.follow || 0}</span><span>FADE {pot?.fade || 0}</span>
-                  </div>
-                  <div className="h-3 w-full border-3 border-ink overflow-hidden flex">
-                    <div style={{ width: `${followPctBar}%`, background: "var(--purple)" }} />
-                    <div style={{ width: `${100 - followPctBar}%`, background: "var(--salmon)" }} />
-                  </div>
-                </div>
-
-                {/* Resolved result */}
-                {duel.status === "resolved" && data?.yourStance ? (
-                  <div className="mt-10 border-t-2 border-dashed border-ink/40 pt-6">
-                    <div className="typewriter text-[10px] tracking-[3px] opacity-70">YOUR RECEIPT · EDGE'S CALL WAS SEALED &amp; SHOWN BEFORE LOCK ({duel.sealHash})</div>
-                    <div className="grid md:grid-cols-3 gap-4 mt-3 typewriter text-sm">
-                      <Stat label="OUTCOME" value={duel.outcome || "—"} />
-                      <Stat label="YOUR CALL" value={pct(data.yourStance.ownProbYes)} />
-                      <Stat label="YOUR BRIER" value={(data.yourStance.brier ?? 0).toFixed(3)} sub={data.yourStance.beatEdge ? "BEAT EDGE ✓" : `vs edge ${(duel.edgeBrier ?? 0).toFixed(3)}`} />
-                      <Stat label="STAKE" value={`${data.yourStance.hex} HEX`} />
-                      <Stat label="PAYOUT" value={`${data.yourStance.payout ?? 0} HEX`} sub={data.yourStance.payout > 0 ? "WON POT" : "lost pot"} />
-                      <Stat label="HEX BALANCE" value={`${data.hexBalance ?? 0}`} />
-                    </div>
-                    <a href={shareResolved()} target="_blank" rel="noreferrer" className="btn-primary inline-block mt-6">SHARE THE RECEIPT ▸</a>
-                  </div>
-                ) : data?.yourStance ? (
-                  <div className="mt-10 border-t-2 border-dashed border-ink/40 pt-6">
-                    <div className="typewriter text-[10px] tracking-[3px] opacity-70">YOUR CALL IS LOCKED</div>
-                    <p className="handwritten text-xl mt-2">
-                      <b>{data.yourStance.stake}</b> · you say <b>{pct(data.yourStance.ownProbYes)}</b> YES · {data.yourStance.hex} HEX · citizen #{data.yourStance.tokenId}
-                    </p>
-                    <p className="typewriter text-[11px] opacity-70 mt-2">come back when it resolves for your Brier vs Edge + payout.</p>
-                  </div>
-                ) : isOpen ? (
-                  /* Forecast controls */
-                  <div className="mt-10 border-t-2 border-dashed border-ink/40 pt-8 space-y-6">
-                    <div className="grid md:grid-cols-2 gap-3">
-                      <button onClick={() => setStake("FOLLOW")} className={stake === "FOLLOW" ? "btn-primary" : "btn-ghost"}>
-                        FOLLOW EDGE ({duel.edgeSide} wins)
-                      </button>
-                      <button onClick={() => setStake("FADE")} className={stake === "FADE" ? "btn-primary" : "btn-ghost"}>
-                        FADE EDGE ({duel.edgeSide} loses)
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="typewriter text-[10px] tracking-[3px] opacity-80 block mb-1">YOUR PROBABILITY OF YES — <b>{ownProb}%</b> (scored on calibration)</label>
-                      <input type="range" min={1} max={99} value={ownProb} onChange={(e) => setOwnProb(Number(e.target.value))} className="w-full" />
-                    </div>
-
-                    <div className="grid md:grid-cols-3 gap-4 items-end">
-                      <div>
-                        <label className="typewriter text-[10px] tracking-[3px] opacity-80 block mb-1">HEX STAKE</label>
-                        <input value={hex} onChange={(e) => setHex(Number(e.target.value.replace(/\D/g, "")) || 0)} className="w-full px-3 py-2 text-sm" />
-                      </div>
-                      <div>
-                        <label className="typewriter text-[10px] tracking-[3px] opacity-80 block mb-1">CITIZEN TOKEN ID</label>
-                        <input value={tokenId} onChange={(e) => setTokenId(e.target.value.replace(/\D/g, ""))} placeholder="333" className="w-full px-3 py-2 text-sm" />
-                      </div>
-                      <div className="text-right">
-                        <div className="typewriter text-[10px] tracking-[3px] opacity-70">HEX BALANCE</div>
-                        <div className="display-h-sm" style={{ fontSize: "28px" }}>{data?.hexBalance ?? "—"}</div>
-                        <button onClick={claimDaily} className="typewriter text-[10px] underline opacity-70">claim daily HEX</button>
-                      </div>
-                    </div>
-
-                    {!session && (
-                      <div className="paper p-4">
-                        <p className="typewriter text-[10px] tracking-[3px] uppercase opacity-70 mb-1">DEMO — ENS HANDLE (or connect a wallet, top right)</p>
-                        <input value={demoWallet} onChange={(e) => setDemoWallet(e.target.value.toLowerCase())} placeholder="vitalik.eth" className="w-full px-3 py-2 text-sm" />
-                      </div>
-                    )}
-
-                    <button disabled={busy || !wallet || !tokenId} onClick={submit} className="btn-primary w-full">
-                      {busy ? "LOCKING…" : "LOCK MY CALL ▸"}
-                    </button>
-                    {err && <p className="typewriter text-sm" style={{ color: "var(--salmon)" }}>{err}</p>}
-                  </div>
-                ) : duel.status === "resolved" ? (
-                  <div className="mt-10 border-t-2 border-dashed border-ink/40 pt-6">
-                    <div className="typewriter text-[10px] tracking-[3px] opacity-70">RESULT · YOU DIDN'T PLAY THIS ONE</div>
-                    <div className="grid md:grid-cols-3 gap-4 mt-3 typewriter text-sm">
-                      <Stat label="OUTCOME" value={duel.outcome || "—"} />
-                      <Stat label="EDGE CALLED" value={pct(duel.edgeProbYes)} sub={`favored ${duel.edgeSide}`} />
-                      <Stat label="EDGE BRIER" value={(duel.edgeBrier ?? 0).toFixed(3)} sub={(duel.edgeBrier ?? 1) < 0.25 ? "decent call" : "poor call"} />
-                    </div>
-                    <p className="handwritten text-lg mt-4 opacity-80">next duel drops soon — lock a call and take the machine on.</p>
-                  </div>
-                ) : (
-                  <div className="mt-10 border-t-2 border-dashed border-ink/40 pt-6">
-                    <p className="handwritten text-xl opacity-80">Locked — awaiting the real market outcome.</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-ink text-manila px-8 py-3 flex items-center justify-between">
-                <div className="display-h-sm" style={{ fontSize: "20px", letterSpacing: "4px" }}>THE ORACLE <span style={{ color: "var(--purple-glow)" }}>LEDGER</span></div>
-                <a href="/oracle/leaderboard" className="typewriter text-[10px] underline opacity-80">CALIBRATION RANKS ▸</a>
-              </div>
-            </div>
-          )}
         </div>
-      </main>
-    </>
+
+        {/* hero */}
+        <div className="ora-hero">
+          <div className="ora-kicker">Daily Duel · Beat the AI</div>
+          <h1 className="ora-title">OUT-CALL<br />THE MACHINE</h1>
+          <p className="ora-sub">Edge seals a probability on a real market. <b>You call it.</b> Closest forecast takes the HEX pot — <b>points, not money.</b></p>
+        </div>
+
+        {!duel ? (
+          <div className="ora-empty">
+            <div className="ora-kicker">No open duel</div>
+            <h3>The desk is quiet.</h3>
+            <p>Edge hasn&apos;t sealed today&apos;s call yet — check back soon.</p>
+          </div>
+        ) : (
+          <div className="ora-card">
+            <div className="ora-inner">
+              {/* strip */}
+              <div className="ora-strip">
+                <span>EDGE · OBJECTIVE MARKET · {duel.domain.toUpperCase()}</span>
+                <span className="ora-seal"><span className="dot" />SEALED {duel.sealHash}</span>
+              </div>
+              <div className="ora-rule" />
+
+              {/* question */}
+              <div className="ora-q">{duel.marketTitle}</div>
+
+              {/* face-off */}
+              <div className="ora-duel">
+                <div className="ora-side ora-machine">
+                  <div className="lab">◆ The Machine — Edge&apos;s sealed call</div>
+                  <div className="ora-bigpct">{pct(duel.edgeProbYes)}</div>
+                  <div className="ora-meta">
+                    favors <b>{duel.edgeSide}</b> · conf {pct(duel.edgeConfidence)}
+                    {duel.edgeBrier != null && <> · Brier <b>{duel.edgeBrier.toFixed(3)}</b></>}
+                  </div>
+                </div>
+
+                <div className="ora-vs">VS</div>
+
+                <div className="ora-side ora-you">
+                  <div className="lab">{isOpen ? "Locks in" : duel.status === "resolved" ? "Outcome" : "Locked"}</div>
+                  <div className={`ora-count${urgent ? " urgent" : ""}`}>{duel.status === "resolved" ? (duel.outcome || "—") : countdown}</div>
+                  <div className="ora-meta"><b>{data?.participants || 0}</b> citizens · <b>{potTotal}</b> HEX pot</div>
+                </div>
+              </div>
+
+              {/* pot bar */}
+              <div className="ora-pot">
+                <div className="row"><span className="f">FOLLOW · {pot?.follow || 0}</span><span className="a">{pot?.fade || 0} · FADE</span></div>
+                <div className="ora-bar">
+                  <div className="fill-f" style={{ width: `${followPctBar}%` }} />
+                  <div className="fill-a" style={{ width: `${100 - followPctBar}%` }} />
+                </div>
+              </div>
+
+              {/* ---- states ---- */}
+              {duel.status === "resolved" && data?.yourStance ? (
+                <>
+                  <div className="ora-hr" />
+                  <div className="ora-lab">Your receipt · Edge&apos;s call was <b>sealed &amp; shown before lock</b> ({duel.sealHash})</div>
+                  <div className="ora-stats">
+                    <Stat k="OUTCOME" v={duel.outcome || "—"} />
+                    <Stat k="YOUR CALL" v={pct(data.yourStance.ownProbYes)} />
+                    <Stat k="YOUR BRIER" v={(data.yourStance.brier ?? 0).toFixed(3)} s={data.yourStance.beatEdge ? "BEAT EDGE ✓" : `vs edge ${(duel.edgeBrier ?? 0).toFixed(3)}`} />
+                    <Stat k="STAKE" v={`${data.yourStance.hex} HEX`} />
+                    <Stat k="PAYOUT" v={`${data.yourStance.payout ?? 0} HEX`} s={data.yourStance.payout > 0 ? "WON POT" : "lost pot"} />
+                    <Stat k="HEX BALANCE" v={`${data.hexBalance ?? 0}`} />
+                  </div>
+                  <a href={shareResolved()} target="_blank" rel="noreferrer" className="ora-lock" style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 22, width: "auto" }}>SHARE THE RECEIPT ▸</a>
+                </>
+              ) : data?.yourStance ? (
+                <>
+                  <div className="ora-hr" />
+                  <div className="ora-lab">Your call is locked</div>
+                  <div className="ora-q" style={{ fontSize: "clamp(20px,3vw,30px)" }}>
+                    <b style={{ color: data.yourStance.stake === "FOLLOW" ? "var(--o-gold-bright)" : "var(--o-red)" }}>{data.yourStance.stake}</b> · you say {pct(data.yourStance.ownProbYes)} YES · {data.yourStance.hex} HEX · citizen #{data.yourStance.tokenId}
+                  </div>
+                  <p className="ora-note" style={{ textAlign: "left", padding: "10px 0 0" }}>Come back when it resolves for your Brier vs Edge + payout.</p>
+                </>
+              ) : isOpen ? (
+                <>
+                  <div className="ora-hr" />
+                  <div className="ora-choices">
+                    <button onClick={() => setStake("FOLLOW")} className={`ora-choice${stake === "FOLLOW" ? " on-f" : ""}`}>
+                      FOLLOW EDGE<small>bet {duel.edgeSide} wins</small>
+                    </button>
+                    <button onClick={() => setStake("FADE")} className={`ora-choice${stake === "FADE" ? " on-a" : ""}`}>
+                      FADE EDGE<small>bet {duel.edgeSide} loses</small>
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 22 }}>
+                    <label className="ora-lab">Your probability of YES — <b>{ownProb}%</b> <span style={{ opacity: .6 }}>(scored on calibration)</span></label>
+                    <input type="range" min={1} max={99} value={ownProb} onChange={(e) => setOwnProb(Number(e.target.value))} className="ora-range" style={{ ["--val" as any]: `${ownProb}%` }} />
+                  </div>
+
+                  <div className="ora-grid3" style={{ marginTop: 22 }}>
+                    <div>
+                      <label className="ora-lab">HEX Stake</label>
+                      <input value={hex} onChange={(e) => setHex(Number(e.target.value.replace(/\D/g, "")) || 0)} className="ora-field" />
+                    </div>
+                    <div>
+                      <label className="ora-lab">Citizen Token ID</label>
+                      <input value={tokenId} onChange={(e) => setTokenId(e.target.value.replace(/\D/g, ""))} placeholder="333" className="ora-field" />
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <label className="ora-lab" style={{ textAlign: "right" }}>HEX Balance</label>
+                      <div style={{ fontFamily: "'Clash Display'", fontWeight: 700, fontSize: 28, color: "var(--o-gold-bright)" }}>{data?.hexBalance ?? "—"}</div>
+                      <button onClick={claimDaily} className="ora-mini">claim daily HEX</button>
+                    </div>
+                  </div>
+
+                  {!session && (
+                    <div style={{ marginTop: 18 }}>
+                      <label className="ora-lab">Demo — ENS handle <span style={{ opacity: .6 }}>(or connect a wallet, top right)</span></label>
+                      <input value={demoWallet} onChange={(e) => setDemoWallet(e.target.value.toLowerCase())} placeholder="vitalik.eth" className="ora-field" />
+                    </div>
+                  )}
+
+                  <button disabled={busy || !wallet || !tokenId} onClick={submit} className="ora-lock" style={{ marginTop: 22 }}>
+                    {busy ? "LOCKING…" : "LOCK MY CALL ▸"}
+                  </button>
+                  {err && <p className="ora-err" style={{ marginTop: 12 }}>{err}</p>}
+                </>
+              ) : duel.status === "resolved" ? (
+                <>
+                  <div className="ora-hr" />
+                  <div className="ora-lab">Result · you didn&apos;t play this one</div>
+                  <div className="ora-stats">
+                    <Stat k="OUTCOME" v={duel.outcome || "—"} />
+                    <Stat k="EDGE CALLED" v={pct(duel.edgeProbYes)} s={`favored ${duel.edgeSide}`} />
+                    <Stat k="EDGE BRIER" v={(duel.edgeBrier ?? 0).toFixed(3)} s={(duel.edgeBrier ?? 1) < 0.25 ? "decent call" : "poor call"} />
+                  </div>
+                  <p className="ora-note" style={{ textAlign: "left", padding: "12px 0 0" }}>Next duel drops soon — lock a call and take the machine on.</p>
+                </>
+              ) : (
+                <>
+                  <div className="ora-hr" />
+                  <p className="ora-note" style={{ textAlign: "left", padding: 0 }}>Locked — awaiting the real market outcome.</p>
+                </>
+              )}
+            </div>
+
+            <div className="ora-foot">
+              <div className="mk">THE ORACLE <b>LEDGER</b></div>
+              <a href="/oracle/leaderboard">CALIBRATION RANKS ▸</a>
+            </div>
+          </div>
+        )}
+
+        <p className="ora-note">HEX is points, not money · outcomes settle on public markets · you keep your own wallet</p>
+      </div>
+    </main>
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ k, v, s }: { k: string; v: string; s?: string }) {
   return (
-    <div className="border-b border-dashed border-ink/30 pb-2">
-      <div className="opacity-60 text-[10px] tracking-[2px]">{label}</div>
-      <div className="font-bold display-h-sm" style={{ fontSize: "26px", color: "var(--purple)" }}>{value}</div>
-      {sub && <div className="text-[10px] opacity-70">{sub}</div>}
+    <div className="ora-stat">
+      <div className="k">{k}</div>
+      <div className="v">{v}</div>
+      {s && <div className="s">{s}</div>}
     </div>
   );
 }
