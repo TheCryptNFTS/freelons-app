@@ -126,8 +126,26 @@ export const oracle = {
       pot_follow: 0, pot_fade: 0,
     };
     const { data, error } = await db().from("oracle_duels").insert(row).select().single();
-    if (error) throw new Error("publish_failed: " + error.message);
+    if (error) {
+      // 23505 = the oracle_one_active_duel partial unique index rejected a second
+      // active duel (a concurrent publish/cron won the race). Idempotent: return
+      // the duel that already exists instead of stacking a second one.
+      if ((error as { code?: string }).code === "23505") {
+        const existing = await this.currentDuel();
+        if (existing) return existing;
+      }
+      throw new Error("publish_failed: " + error.message);
+    }
     return toDuel(data);
+  },
+
+  // All duels currently past lock and awaiting resolution (oldest first). The cron
+  // resolves every one of these, so a settled market is never stranded even if the
+  // single-active-duel invariant were ever violated.
+  async lockedDuels(): Promise<Duel[]> {
+    const { data } = await db().from("oracle_duels").select("*").eq("status", "locked")
+      .order("published_at", { ascending: true });
+    return (data || []).map(toDuel);
   },
 
   async stancesForDuel(duelId: string): Promise<Stance[]> {

@@ -22,6 +22,13 @@ create table if not exists oracle_duels (
   pot_fade bigint not null default 0
 );
 create index if not exists oracle_duels_status_pub on oracle_duels(status, published_at desc);
+-- At most ONE non-terminal (open|locked) duel may exist at a time. This makes the
+-- single-unresolved-duel invariant a DB GUARANTEE rather than a racy app-level
+-- check-then-insert, so two concurrent /publish or /cron calls cannot stack duels
+-- (the losing racer's insert fails with unique_violation, which publishDuel treats
+-- as "a duel already exists" and returns the current one).
+create unique index if not exists oracle_one_active_duel
+  on oracle_duels ((status in ('open','locked'))) where status in ('open','locked');
 
 create table if not exists oracle_hex (
   wallet text primary key,

@@ -2,6 +2,7 @@ node_modules/
 .next/
 .data/
 *.log
+*.tsbuildinfo
 .env
 .env.local
 .env.*.local
