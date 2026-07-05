@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { /* query-only ok */ }
   const duelId = body?.duelId || new URL(req.url).searchParams.get("duelId");
   if (!duelId) return NextResponse.json({ error: "duelId_required" }, { status: 400 });
-  const res = oracle.voidDuel(String(duelId));
+  const res = await oracle.voidDuel(String(duelId));
   if (!res.ok) return NextResponse.json({ error: (res as { ok: false; error: string }).error }, { status: 400 });
   return NextResponse.json({ ok: true, ...res });
 }

@@ -37,10 +37,9 @@ export async function POST(req: Request) {
     wallet = String(bodyWallet).toLowerCase().trim();
   }
 
-  const rl = oracle.rateLimit(wallet);
-  if (!rl.ok) return NextResponse.json({ error: "rate_limited", retryIn: rl.retryIn }, { status: 429 });
-
-  const res = oracle.placeStance({
+  // No app-level rate limiter needed: one stance per (duel, wallet) is enforced by
+  // a DB unique constraint, and the stake is an atomic balance-checked debit.
+  const res = await oracle.placeStance({
     duelId: String(duelId),
     wallet,
     tokenId: Number(tokenId),
@@ -53,5 +52,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: f.error, detail: f.detail }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, stance: res.stance, hexBalance: oracle.hexBalance(wallet) });
+  return NextResponse.json({ ok: true, stance: res.stance, hexBalance: res.hexBalance });
 }

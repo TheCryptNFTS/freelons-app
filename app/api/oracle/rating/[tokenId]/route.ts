@@ -7,6 +7,6 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: { tokenId: string } }) {
   const tokenId = Number(params.tokenId);
   if (!Number.isFinite(tokenId)) return NextResponse.json({ error: "bad_token" }, { status: 400 });
-  const rating = oracle.ratingFor(tokenId);
+  const rating = await oracle.ratingFor(tokenId);
   return NextResponse.json({ tokenId, rating });
 }

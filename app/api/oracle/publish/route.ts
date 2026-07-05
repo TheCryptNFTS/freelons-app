@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
   // Don't stack duels: block while the current one is UNRESOLVED (open OR locked-
   // but-not-settled). Otherwise a market that never settles would let duels pile up.
-  const cur = oracle.currentDuel();
+  const cur = await oracle.currentDuel();
   if (cur && cur.status !== "resolved" && cur.status !== "void") {
     return NextResponse.json({ ok: true, duel: cur, note: `an unresolved duel already exists (${cur.status}) — resolve or void it first` });
   }
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   try { lockInMinutes = (await req.json())?.lockInMinutes; } catch { /* no body */ }
 
   const c = await fetchDailyCandidate();
-  const duel = oracle.publishDuel({
+  const duel = await oracle.publishDuel({
     marketId: c.marketId,
     marketTitle: c.marketTitle,
     domain: c.domain,

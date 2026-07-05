@@ -26,9 +26,7 @@ export async function POST(req: Request) {
     wallet = String(bodyWallet).toLowerCase().trim();
   }
 
-  const rl = oracle.rateLimit("faucet:" + wallet);
-  if (!rl.ok) return NextResponse.json({ error: "rate_limited", retryIn: rl.retryIn }, { status: 429 });
-
-  const res = oracle.claimDaily(wallet);
+  // The daily allowance is atomic + idempotent-per-day in the DB (once-per-24h).
+  const res = await oracle.claimDaily(wallet);
   return NextResponse.json({ ok: true, ...res });
 }
